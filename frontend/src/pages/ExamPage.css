@@ -1,0 +1,10 @@
+.exam-page { min-height: 100vh; background: var(--bg-primary); display: flex; flex-direction: column; }
+.exam-body { display: flex; flex: 1; overflow: hidden; }
+.exam-main { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; }
+.exam-sidebar { width: 280px; border-left: 1px solid var(--glass-border); padding: 16px; overflow-y: auto; background: var(--bg-secondary); }
+.exam-nav { display: flex; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--glass-border); background: var(--bg-secondary); }
+.exam-nav .btn { flex: 1; }
+@media (max-width: 900px) {
+  .exam-sidebar { display: none; }
+  .exam-body { flex-direction: column; }
+}
