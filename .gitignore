@@ -26,8 +26,6 @@ pnpm-debug.log*
 Thumbs.db
 
 # Render / local build artifacts
-render.yaml
-.renderignore
 
 # Misc
 RRB Group_D Answer_Key_Compilation(English).pdf

@@ -1,0 +1,12 @@
+backend/mockbees.db.bak
+backend/*.db
+node_modules
+.venv
+venv
+dist
+frontend/dist
+*.pyc
+__pycache__
+.git
+.github
+README.md

@@ -484,7 +484,7 @@ Return a JSON object with EXACTLY this structure:
 def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_questions: int, difficulty_mix: str = None, negative_marks: float = 0.33, progress_callback=None) -> List[Question]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    MAX_QUESTIONS_PER_BATCH = 8  # Smaller batches = faster individual API calls
+    MAX_QUESTIONS_PER_BATCH = 10  # Slightly larger batches to reduce total LLM calls
     
     difficulty_level = difficulty_mix or _exam_difficulty(exam_name)
     system_prompt = _get_system_prompt(exam_name)
@@ -515,7 +515,9 @@ def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_quest
 
     # Generate all batches in PARALLEL
     all_questions = []
-    with ThreadPoolExecutor(max_workers=min(len(tasks), 3)) as executor:
+    # Allow more parallel workers (bounded) to improve latency when many small batches
+    max_workers = min(len(tasks), 6) if len(tasks) > 0 else 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
                 _generate_for_subject,
