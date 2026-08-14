@@ -60,15 +60,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Install frontend deps
+      - name: Install frontend deps and capture logs
         working-directory: frontend
         run: |
-          npm ci
+          npm ci 2>&1 | tee frontend_build.log
 
-      - name: Build frontend
+      - name: Build frontend and capture logs
         working-directory: frontend
         run: |
-          npm run build
+          npm run build 2>&1 | tee -a frontend_build.log
+
+      - name: Upload frontend build logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-logs
+          path: frontend/frontend_build.log
 
   vercel-deploy:
     name: Vercel Deploy
