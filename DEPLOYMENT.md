@@ -1,26 +1,36 @@
-# Deploying MockBees to Vercel (and local Postgres setup)
+# Deploying MockBees to Render (and local Postgres setup)
 
-This document explains how to deploy the `mockbees` project to Vercel (frontend + Python API) and how to run a local Postgres-based development stack using Docker Compose.
+This document explains how to deploy the `mockbees` project to Render (frontend + Python backend) and how to run a local Postgres-based development stack using Docker Compose.
 
-## 1) Vercel deployment (recommended for production frontend + serverless API)
+## 1) Render deployment (recommended for production frontend + backend)
 
 Steps:
 
-1. Push your repo to GitHub (or connect the repository to Vercel).
-2. In Vercel, import the project and select the `main` branch.
-3. Add Environment Variables in Vercel (Project Settings → Environment Variables):
-   - `DATABASE_URL` — e.g. `postgres://user:pass@host:5432/dbname` (use a managed Postgres)
+1. Push your repo to GitHub.
+2. Connect your GitHub repository to Render (https://render.com).
+3. Create services from `render.yaml`:
+   - **Backend Service** (Python/FastAPI):
+     - Build command: `cd backend && pip install -r requirements.txt`
+     - Start command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+     - Plan: Starter (or higher as needed)
+   - **Frontend Service** (Static):
+     - Build command: `cd frontend && npm install && npm run build`
+     - Publish path: `frontend/dist`
+     - Plan: Starter
+
+4. Add Environment Variables in Render Dashboard:
+   - `DATABASE_URL` — e.g. `postgresql://user:pass@host:5432/dbname` (use a managed Postgres)
    - `SECRET_KEY` — a long random string
    - `GROQ_API_KEY` — required for AI question generation
    - `GOOGLE_CLIENT_ID` — optional
-   - (optional) `VITE_API_URL` — leave unset to use same-origin `/api`
+   - `VITE_API_URL` — set to your backend service URL (e.g., `https://mockbees-backend.onrender.com/api`)
 
-4. Vercel will build the frontend (uses `frontend/package.json`) and install Python dependencies from `api/requirements.txt` for the serverless API.
-5. After deployment, the frontend will call the API at `/api` by default.
+5. Render will automatically build and deploy both services using the `render.yaml` configuration.
 
 Notes:
-- Do NOT use SQLite in production on Vercel — the filesystem is ephemeral. Use a managed Postgres and set `DATABASE_URL` accordingly.
+- Use a managed Postgres database (Render provides this) for production — do NOT use SQLite.
 - Make sure your `GROQ_API_KEY` account has sufficient quota for generation.
+- The frontend service will connect to the backend using the `VITE_API_URL` environment variable.
 
 ## 2) Local development with Docker Compose (Postgres + backend + frontend build)
 

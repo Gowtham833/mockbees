@@ -389,13 +389,27 @@ def _get_marking_info(exam_name: str) -> str:
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=15))
-def _generate_for_subject(
+def _validate_question(q: Question) -> bool:
+    if not all([q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer, q.explanation]):
+        return False
+    if q.correct_answer not in ["A", "B", "C", "D"]:
+        return False
+    
+    # Check for duplicate options
+    opts = [q.option_a.lower().strip(), q.option_b.lower().strip(), q.option_c.lower().strip(), q.option_d.lower().strip()]
+    if len(set(opts)) < 4:
+        return False
+        
+    return True
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
+def _generate_batch(
     exam_name: str, sub_name: str, topics: str, count: int,
     difficulty_level: str, system_prompt: str, marking_info: str,
-    constraints: str, sample_questions: str, negative_marks: float
+    constraints: str, sample_questions: str, negative_marks: float,
+    existing_question_texts: set
 ) -> List[Question]:
-    """Generate questions for a single subject. Called in parallel."""
+    """Generate a batch of questions for a single subject."""
     questions = []
 
     prompt = f"""You are setting a REAL {exam_name} examination paper. Generate EXACTLY {count} multiple-choice questions.
@@ -436,112 +450,158 @@ Return a JSON object with EXACTLY this structure:
     }}
   ]
 }}"""
-    try:
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            model="llama-3.1-8b-instant",
-            max_tokens=2500,
-            temperature=0.6,
-            response_format={"type": "json_object"}
-        )
+    models_to_try = []
+    configured_model = getattr(settings, "GROQ_MODEL", "openai/gpt-oss-120b")
+    for m in [configured_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "llama-3.3-70b-versatile"]:
+        if m and m not in models_to_try:
+            models_to_try.append(m)
 
+    chat_completion = None
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=model_name,
+                max_tokens=8000,
+                temperature=0.6,
+                response_format={"type": "json_object"}
+            )
+            break
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Model {model_name} failed: {e}. Trying fallback...")
+
+    if not chat_completion:
+        logger.error(f"Error generating questions for {sub_name}: {last_err}")
+        raise last_err
+
+    try:
         content = chat_completion.choices[0].message.content
         parsed = json.loads(content)
 
         for q_data in parsed.get("questions", []):
+            q_text = q_data.get("question", "").strip()
+            if not q_text or q_text.lower() in existing_question_texts:
+                continue
+
             q = Question(
                 subject=q_data.get("subject", sub_name),
                 topic=q_data.get("topic", "General"),
-                question_text=q_data.get("question", ""),
+                question_text=q_text,
                 option_a=q_data.get("option_a", ""),
                 option_b=q_data.get("option_b", ""),
                 option_c=q_data.get("option_c", ""),
                 option_d=q_data.get("option_d", ""),
-                correct_answer=q_data.get("correct_answer", "A").strip()[:1].upper(),
+                correct_answer=str(q_data.get("correct_answer", "A")).strip()[:1].upper(),
                 explanation=q_data.get("explanation", ""),
                 difficulty=q_data.get("difficulty", difficulty_level).lower(),
                 marks=1.0,
                 negative_marks=negative_marks
             )
-            questions.append(q)
+            
+            if _validate_question(q):
+                questions.append(q)
+                existing_question_texts.add(q_text.lower())
 
     except Exception as e:
         logger.error(f"Error generating questions for {sub_name}: {e}")
         raise e  # Propagate to trigger retry
 
+    logger.info(f"Generated {len(questions)} questions for {sub_name}")
     return questions
 
 
-def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_questions: int, difficulty_mix: str = None, negative_marks: float = 0.33, progress_callback=None) -> List[Question]:
+def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_questions: int, difficulty_mix: str = None, negative_marks: float = 0.33, batch_callback=None) -> List[Question]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
 
-    MAX_QUESTIONS_PER_BATCH = 10  # Slightly larger batches to reduce total LLM calls
+    MAX_QUESTIONS_PER_BATCH = 10  # Larger batches = fewer API calls = faster generation
     
     difficulty_level = difficulty_mix or _exam_difficulty(exam_name)
     system_prompt = _get_system_prompt(exam_name)
     marking_info = _get_marking_info(exam_name)
 
-    # Calculate questions per subject
+    # Calculate target questions per subject
     total_weight = sum(sub.get("weightage", 1) for sub in subjects)
-
-    # Prepare tasks - split each subject into batches of MAX_QUESTIONS_PER_BATCH
-    tasks = []
-    for subject in subjects:
-        sub_name = subject["name"]
-        topics = ", ".join(subject.get("topics", []))
-        weight = subject.get("weightage", 1)
-        count = max(1, int(round((weight / total_weight) * num_questions)))
-        constraints = _get_exam_constraints(exam_name, sub_name)
-        sample_questions = _get_sample_questions(exam_name, sub_name)
-        
-        # Split into smaller batches
-        remaining = count
-        while remaining > 0:
-            batch_size = min(remaining, MAX_QUESTIONS_PER_BATCH)
-            tasks.append((sub_name, topics, batch_size, constraints, sample_questions))
-            remaining -= batch_size
+    target_counts = {}
+    remaining_total = num_questions
     
-    total_batches = len(tasks)
-    completed_batches = 0
-
-    # Generate all batches in PARALLEL
+    for idx, subject in enumerate(subjects):
+        sub_name = subject["name"]
+        weight = subject.get("weightage", 1)
+        if idx == len(subjects) - 1:
+            count = remaining_total # last subject gets all remainder
+        else:
+            count = max(1, int(round((weight / total_weight) * num_questions)))
+        target_counts[sub_name] = count
+        remaining_total -= count
+        
     all_questions = []
-    # Allow more parallel workers (bounded) to improve latency when many small batches
-    max_workers = min(len(tasks), 6) if len(tasks) > 0 else 1
+    existing_texts = set()
+    lock = threading.Lock()
+
+    # Use more workers to maximize parallelism across ALL subjects simultaneously
+    max_workers = min(len(subjects) * 3, 12) if len(subjects) > 0 else 1
+    logger.info(f"Starting generation: {num_questions} questions across {len(subjects)} subjects with {max_workers} workers")
+    
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                _generate_for_subject,
-                exam_name, sub_name, topics, count,
-                difficulty_level, system_prompt, marking_info,
-                constraints, sample_qs, negative_marks
-            ): sub_name
-            for sub_name, topics, count, constraints, sample_qs in tasks
-        }
-        for future in as_completed(futures):
-            sub_name = futures[future]
+        # Launch ALL batches for ALL subjects at once (fully parallel)
+        all_futures = []
+        
+        for subject in subjects:
+            sub_name = subject["name"]
+            topics = ", ".join(subject.get("topics", []))
+            target_count = target_counts[sub_name]
+            constraints = _get_exam_constraints(exam_name, sub_name)
+            sample_questions = _get_sample_questions(exam_name, sub_name)
+            
+            # Split into batches and launch all at once
+            remaining_for_subject = target_count
+            while remaining_for_subject > 0:
+                batch_size = min(remaining_for_subject, MAX_QUESTIONS_PER_BATCH)
+                future = executor.submit(
+                    _generate_batch,
+                    exam_name, sub_name, topics, batch_size,
+                    difficulty_level, system_prompt, marking_info,
+                    constraints, sample_questions, negative_marks,
+                    existing_texts
+                )
+                all_futures.append((future, sub_name, target_count))
+                remaining_for_subject -= batch_size
+        
+        logger.info(f"Launched {len(all_futures)} parallel batch requests")
+        
+        # Collect results as they complete — calling batch_callback immediately
+        # so the frontend sees incremental progress
+        subject_collected = {}
+        
+        for future in as_completed([f[0] for f in all_futures]):
             try:
                 questions = future.result()
-                logger.info(f"Generated {len(questions)} questions for {sub_name}")
-                all_questions.extend(questions)
+                if questions:
+                    with lock:
+                        all_questions.extend(questions)
+                    
+                    if batch_callback and questions:
+                        try:
+                            batch_callback(questions)
+                        except Exception as cb_err:
+                            logger.error(f"Callback error: {cb_err}")
+                    
+                    logger.info(f"Progress: {len(all_questions)}/{num_questions} questions generated")
             except Exception as e:
-                logger.error(f"Failed to generate questions for {sub_name}: {e}")
-            
-            completed_batches += 1
-            if progress_callback:
-                try:
-                    progress_callback(completed_batches, total_batches, sub_name)
-                except Exception:
-                    pass
+                logger.error(f"Batch generation failed: {e}")
+                    
+    logger.info(f"Generation complete: {len(all_questions)}/{num_questions} questions")
+    return all_questions
 
-    # Trim to exactly num_questions if we got too many due to rounding
-    return all_questions[:num_questions]

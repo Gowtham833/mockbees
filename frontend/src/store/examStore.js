@@ -10,6 +10,7 @@ export const useExamStore = create(
       currentQuestionIndex: 0,
       markedForReview: [],
       timeRemaining: 0,
+      timerStarted: false,
       isSubmitted: false,
       isLoading: false,
       examName: '',
@@ -26,6 +27,8 @@ export const useExamStore = create(
         const computedMinutes = Number(durationMinutes) || Math.max(1, Math.ceil((test?.total_questions || questions.length || 20) / 2));
         const durationSeconds = computedMinutes * 60;
 
+        const isReady = test?.generation_status === 'READY';
+
         set({
           currentTest: { ...test, duration_seconds: durationSeconds, duration_minutes: computedMinutes },
           questions: questions,
@@ -33,9 +36,44 @@ export const useExamStore = create(
           currentQuestionIndex: 0,
           markedForReview: [],
           timeRemaining: durationSeconds,
+          timerStarted: isReady,
           isSubmitted: false,
           examName: test.name || 'Mock Test'
         });
+      },
+
+      startTimer: () => {
+        set({ timerStarted: true });
+      },
+
+      mergeQuestions: (newQuestions) => {
+        set((state) => {
+          if (!newQuestions || newQuestions.length === 0) return state;
+
+          // Build a set of existing question IDs for fast lookup
+          const existingIds = new Set(state.questions.map(q => q.id));
+          const newIds = new Set(newQuestions.map(q => q.id));
+
+          // Check if there are genuinely new questions
+          let hasNew = false;
+          for (const id of newIds) {
+            if (!existingIds.has(id)) {
+              hasNew = true;
+              break;
+            }
+          }
+
+          if (hasNew || newQuestions.length > state.questions.length) {
+            return { questions: newQuestions };
+          }
+          return state;
+        });
+      },
+
+      updateTestStatus: (testUpdate) => {
+        set((state) => ({
+          currentTest: { ...state.currentTest, ...testUpdate }
+        }));
       },
 
       setAnswer: (questionId, answer) => {
@@ -87,6 +125,8 @@ export const useExamStore = create(
 
       tick: () => {
         set((state) => {
+          // Only tick when timer has been explicitly started
+          if (!state.timerStarted) return state;
           if (state.timeRemaining > 0 && !state.isSubmitted) {
             return { timeRemaining: state.timeRemaining - 1 };
           } else if (state.timeRemaining === 0 && !state.isSubmitted) {
@@ -104,6 +144,7 @@ export const useExamStore = create(
           currentQuestionIndex: 0,
           markedForReview: [],
           timeRemaining: 0,
+          timerStarted: false,
           isSubmitted: false,
           examName: ''
         });
@@ -120,6 +161,7 @@ export const useExamStore = create(
         currentQuestionIndex: state.currentQuestionIndex,
         markedForReview: state.markedForReview,
         timeRemaining: state.timeRemaining,
+        timerStarted: state.timerStarted,
         isSubmitted: state.isSubmitted,
         examName: state.examName
       })

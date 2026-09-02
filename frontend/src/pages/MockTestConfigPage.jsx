@@ -32,86 +32,14 @@ export default function MockTestConfigPage() {
 
   const handleGenerate = async () => {
     setGenerating(true);
-    setProgress({ completed: 0, total: 0, subject: 'Initializing...', percent: 0 });
-
-    const token = localStorage.getItem('mockbees_token');
-    const controller = new AbortController();
-    abortRef.current = controller;
-
     try {
-      const response = await fetch(`${getApiBaseUrl()}/mock-tests/generate-stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ exam_id: parseInt(examId), num_questions: numQ }),
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-
-            if (event.type === 'progress') {
-              const pct = event.total > 0 ? Math.round((event.completed / event.total) * 100) : 0;
-              setProgress({
-                completed: event.completed,
-                total: event.total,
-                subject: event.subject,
-                percent: pct
-              });
-            } else if (event.type === 'complete') {
-              const data = event.data;
-              setTest(data, data.questions || []);
-              toast.success('Mock test generated!');
-              navigate(`/exam/${data.id}`);
-              return;
-            } else if (event.type === 'error') {
-              throw new Error(event.message);
-            }
-          } catch (parseErr) {
-            if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
-          }
-        }
-      }
-
-      // If we reach here without complete event, fallback
-      throw new Error('Stream ended without completion');
-
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      console.warn('SSE failed, falling back to regular endpoint:', e.message);
-      
-      // Fallback to regular non-streaming endpoint
-      try {
-        setProgress({ completed: 0, total: 0, subject: 'Generating questions...', percent: 0 });
-        const r = await examService.generateMockTest(examId, numQ);
-        const data = r.data;
-        setTest(data, data.questions || []);
-        toast.success('Mock test generated!');
-        navigate(`/exam/${data.id}`);
-        return;
-      } catch (fallbackErr) {
-        toast.error(fallbackErr.response?.data?.detail || 'Failed to generate test');
-      }
+      const response = await examService.generateMockTest(examId, numQ);
+      const data = response.data;
+      setTest(data, data.questions || []);
+      toast.success('Mock test initializing! You can start right away.');
+      navigate(`/exam/${data.id}`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to initialize test');
       setGenerating(false);
     }
   };
@@ -121,44 +49,6 @@ export default function MockTestConfigPage() {
 
   return (
     <div className="config-page">
-      {generating && (
-        <div className="generating-overlay">
-          <div className="gen-progress-container">
-            <div className="gen-bee-icon">
-              <LoadingSpinner size={56} />
-            </div>
-            <div className="gen-progress-title">🐝 AI is generating your test...</div>
-            <div className="gen-progress-subtitle">
-              {progress.subject
-                ? `Working on: ${progress.subject}`
-                : 'Initializing AI engine...'
-              }
-            </div>
-            <div className="gen-progress-bar-container">
-              <div className="gen-progress-bar-track">
-                <div
-                  className="gen-progress-bar-fill"
-                  style={{ width: `${Math.max(progress.percent, 5)}%` }}
-                />
-                <div className="gen-progress-bar-glow" style={{ width: `${Math.max(progress.percent, 5)}%` }} />
-              </div>
-              <div className="gen-progress-stats">
-                {progress.total > 0 ? (
-                  <>
-                    <span className="gen-progress-count">{progress.completed} / {progress.total} batches</span>
-                    <span className="gen-progress-pct">{progress.percent}%</span>
-                  </>
-                ) : (
-                  <span className="gen-progress-count">Preparing batches...</span>
-                )}
-              </div>
-            </div>
-            <div className="gen-progress-tip">
-              💡 Questions are generated in small parallel batches for speed
-            </div>
-          </div>
-        </div>
-      )}
       <h1>Configure Mock Test</h1>
       <Card className="config-exam-info">
         <div className="config-exam-name">{exam.name}</div>

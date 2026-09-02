@@ -16,27 +16,22 @@ def get_exam_by_id(db: Session, exam_id: int):
     return db.query(Exam).filter(Exam.id == exam_id).first()
 
 
-def create_test_attempt(db: Session, user_id: int, exam_id: int, questions: List[Question]):
+def create_test_attempt(db: Session, user_id: int, exam_id: int, num_questions: int):
     exam = get_exam_by_id(db, exam_id)
+    
     attempt = TestAttempt(
         user_id=user_id,
         exam_id=exam_id,
         status='in_progress',
-        total_questions=len(questions),
-        max_score=sum(q.marks for q in questions) if questions else 0.0
+        generation_status='PENDING',
+        total_questions=num_questions,
+        # max_score will be updated dynamically or calculated based on num_questions
+        max_score=exam.total_marks * (num_questions / exam.total_questions) if exam.total_questions > 0 else 0.0
     )
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
     
-    for q in questions:
-        q.test_attempt_id = attempt.id
-        q.exam_id = exam_id
-        db.add(q)
-    
-    db.commit()
-    db.refresh(attempt)
-
     return attempt
 
 def get_test_attempt(db: Session, attempt_id: int, user_id: int):

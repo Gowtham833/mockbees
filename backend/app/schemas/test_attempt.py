@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from .question import QuestionResponse, QuestionWithAnswer
+from .exam import ExamResponse
 
 class TestConfigRequest(BaseModel):
     exam_id: int
@@ -26,6 +27,9 @@ class TestAttemptResponse(BaseModel):
     duration_minutes: int
     duration_seconds: int
     started_at: datetime
+    generation_status: str
+    error_message: Optional[str] = None
+    exam: Optional[ExamResponse] = None
     questions: List[QuestionResponse] = []
     user_answers: List[UserAnswerResponse] = []
     
@@ -56,6 +60,7 @@ class TestResultResponse(BaseModel):
     time_taken_seconds: Optional[int] = None
     started_at: datetime
     completed_at: Optional[datetime] = None
+    exam: Optional[ExamResponse] = None
     questions: List[QuestionWithAnswer] = []
     user_answers: List[UserAnswerResponse] = []
     

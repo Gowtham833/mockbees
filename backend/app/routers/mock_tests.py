@@ -27,92 +27,11 @@ def generate_mock_test(
         
     num_q = config.num_questions or exam.total_questions
     
-    questions = generate_questions(exam.name, exam.subjects, num_q, negative_marks=exam.negative_marking)
-    if not questions:
-        raise HTTPException(status_code=500, detail="Failed to generate questions")
-        
-    attempt = create_test_attempt(db, current_user.id, exam.id, questions)
+    # Create attempt with status 'PENDING'
+    attempt = create_test_attempt(db, current_user.id, exam.id, num_q)
     
-    # Hide correct answer and explanation for in-progress tests
-    for q in attempt.questions:
-        q.correct_answer = ""
-        q.explanation = ""
-        
+    # The generation_worker_loop running in the background will pick this up
     return attempt
-
-@router.post("/generate-stream")
-def generate_mock_test_stream(
-    config: TestConfigRequest,
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    exam = get_exam_by_id(db, config.exam_id)
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-        
-    num_q = config.num_questions or exam.total_questions
-    
-    def event_stream():
-        progress_data = {"completed": 0, "total": 0, "current_subject": "", "status": "generating"}
-        generation_result = {"questions": None, "error": None}
-        
-        def progress_callback(completed, total, subject_name):
-            progress_data["completed"] = completed
-            progress_data["total"] = total
-            progress_data["current_subject"] = subject_name
-        
-        def generate_in_thread():
-            try:
-                questions = generate_questions(
-                    exam.name, exam.subjects, num_q, 
-                    negative_marks=exam.negative_marking,
-                    progress_callback=progress_callback
-                )
-                generation_result["questions"] = questions
-            except Exception as e:
-                generation_result["error"] = str(e)
-        
-        thread = threading.Thread(target=generate_in_thread)
-        thread.start()
-        
-        last_completed = -1
-        while thread.is_alive():
-            if progress_data["completed"] != last_completed:
-                last_completed = progress_data["completed"]
-                yield f"data: {json.dumps({'type': 'progress', 'completed': progress_data['completed'], 'total': progress_data['total'], 'subject': progress_data['current_subject']})}\n\n"
-            time.sleep(0.5)
-        
-        thread.join()
-        
-        if generation_result["error"]:
-            yield f"data: {json.dumps({'type': 'error', 'message': generation_result['error']})}\n\n"
-            return
-        
-        questions = generation_result["questions"]
-        if not questions:
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Failed to generate questions'})}\n\n"
-            return
-        
-        attempt = create_test_attempt(db, current_user.id, exam.id, questions)
-        
-        # Hide correct answer and explanation for in-progress tests
-        for q in attempt.questions:
-            q.correct_answer = ""
-            q.explanation = ""
-        
-        from app.schemas.test_attempt import TestAttemptResponse
-        response_data = TestAttemptResponse.model_validate(attempt).model_dump(mode='json')
-        yield f"data: {json.dumps({'type': 'complete', 'data': response_data})}\n\n"
-    
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
-    )
 
 @router.get("/history", response_model=List[TestResultResponse])
 def get_test_history(

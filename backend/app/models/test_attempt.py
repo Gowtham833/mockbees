@@ -19,6 +19,8 @@ class TestAttempt(Base):
     time_taken_seconds = Column(Integer, nullable=True)
     started_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
+    generation_status = Column(String, default="READY") # 'PENDING', 'GENERATING', 'READY', 'FAILED'
+    error_message = Column(String, nullable=True)
 
     user = relationship("User")
     exam = relationship("Exam", back_populates="test_attempts")

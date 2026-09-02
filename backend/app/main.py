@@ -18,7 +18,18 @@ async def lifespan(app: FastAPI):
             seed_database(db)
     finally:
         db.close()
+        
+    import asyncio
+    from app.services.generation_worker import generation_worker_loop
+    worker_task = asyncio.create_task(generation_worker_loop())
+    
     yield
+    
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(
     title="MockBees API",

@@ -133,6 +133,14 @@
   font-size: 0.85rem;
 }
 .palette-section-btn:hover { background: var(--bg-card-hover); }
+.palette-section-btn.generating-section {
+  border-style: dashed;
+  border-color: var(--accent-glow);
+  opacity: 0.7;
+}
+.palette-section-btn.generating-section .section-name {
+  color: var(--text-muted);
+}
 .section-name { font-weight: 600; color: var(--text-primary); }
 .section-count { background: var(--glass); padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; color: var(--text-muted); }
 .palette-grid {
@@ -160,6 +168,27 @@
 .palette-btn.marked { background: rgba(249, 115, 22, 0.2); border-color: #f97316; color: #f97316; }
 .palette-btn.current { border-color: var(--info); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
 .palette-btn.visited { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); }
+
+/* Generating state for palette buttons */
+.palette-btn.generating {
+  background: rgba(245, 158, 11, 0.08);
+  border: 2px dashed rgba(245, 158, 11, 0.3);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+  animation: palette-pulse 2s ease-in-out infinite;
+}
+@keyframes palette-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+/* Generating legend dot */
+.legend-dot.generating {
+  background: rgba(245, 158, 11, 0.4);
+  border: 1px dashed rgba(245, 158, 11, 0.6);
+}
+
 .palette-legend {
   display: flex;
   flex-wrap: wrap;
@@ -196,6 +225,27 @@
 .exam-timer .timer-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .exam-timer.warning { border-color: var(--warning); color: var(--warning); }
 .exam-timer.danger { border-color: var(--error); color: var(--error); animation: pulse 1s ease-in-out infinite; }
+
+/* Timer waiting state (during question generation) */
+.exam-timer.waiting {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  border-style: dashed;
+}
+.exam-timer .timer-waiting-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+.exam-timer .spinning {
+  animation: spin 1.5s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 /* Exam Header */
 .exam-header {
