@@ -10,8 +10,9 @@ Steps:
 2. Connect your GitHub repository to Render (https://render.com).
 3. Create services from `render.yaml`:
    - **Backend Service** (Python/FastAPI):
-     - Build command: `cd backend && pip install -r requirements.txt`
-     - Start command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+      - Root Directory: repository root (leave this blank in Render)
+      - Build command: `pip install -r backend/requirements.txt`
+      - Start command: `uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT`
      - Plan: Starter (or higher as needed)
    - **Frontend Service** (Static):
      - Build command: `cd frontend && npm install && npm run build`
@@ -26,6 +27,8 @@ Steps:
    - `VITE_API_URL` — set to your backend service URL (e.g., `https://mockbees-backend.onrender.com/api`)
 
 5. Render will automatically build and deploy both services using the `render.yaml` configuration.
+
+If a service was created manually, update its Build Command and Start Command to the values above. A command of `pip install -r requirements.txt` from the repository root will fail because the backend dependencies are in `backend/requirements.txt`.
 
 Notes:
 - Use a managed Postgres database (Render provides this) for production — do NOT use SQLite.
