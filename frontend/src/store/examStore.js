@@ -27,7 +27,7 @@ export const useExamStore = create(
         const computedMinutes = Number(durationMinutes) || Math.max(1, Math.ceil((test?.total_questions || questions.length || 20) / 2));
         const durationSeconds = computedMinutes * 60;
 
-        const isReady = test?.generation_status === 'READY';
+        const isReady = test?.generation_status === 'READY' || (questions && questions.length > 0);
 
         set({
           currentTest: { ...test, duration_seconds: durationSeconds, duration_minutes: computedMinutes },

@@ -33,12 +33,8 @@
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  .app-layout {
+  .app-layout, .app-layout.sidebar-closed, .app-layout.sidebar-open {
     grid-template-columns: 0px 1fr;
-  }
-  
-  .app-layout.sidebar-open {
-    grid-template-columns: 0px 1fr; /* Sidebar becomes absolute/fixed */
   }
   
   .content-container {

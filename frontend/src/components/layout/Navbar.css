@@ -206,7 +206,7 @@
 }
 
 @media (max-width: 768px) {
-  .menu-toggle {
+  .mobile-menu-btn {
     display: none !important;
   }
 }
