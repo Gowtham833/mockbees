@@ -55,3 +55,28 @@ app.include_router(users.router, prefix="/api/users", tags=["Users"])
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "MockBees API"}
+
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Serve static files from the 'static' directory if it exists (for Docker deployments)
+if os.path.isdir("static"):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+    app.mount("/vite.svg", StaticFiles(directory="static"), name="vite-svg")
+    app.mount("/sw.js", StaticFiles(directory="static"), name="sw-js")
+    
+    @app.exception_handler(StarletteHTTPException)
+    async def _spa_fallback_handler(request: Request, exc: StarletteHTTPException):
+        if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+            return FileResponse("static/index.html")
+        return None
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if not full_path.startswith("api/"):
+            return FileResponse("static/index.html")
+        return {"error": "Not found"}
