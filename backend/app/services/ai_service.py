@@ -402,7 +402,7 @@ def _validate_question(q: Question) -> bool:
         
     return True
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=10, max=60))
 def _generate_batch(
     exam_name: str, sub_name: str, topics: str, count: int,
     difficulty_level: str, system_prompt: str, marking_info: str,
@@ -472,7 +472,7 @@ Return a JSON object with EXACTLY this structure:
                     }
                 ],
                 model=model_name,
-                max_tokens=8000,
+                max_tokens=4000,
                 temperature=0.6,
                 response_format={"type": "json_object"}
             )
@@ -525,7 +525,7 @@ def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_quest
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import threading
 
-    MAX_QUESTIONS_PER_BATCH = 10  # Larger batches = fewer API calls = faster generation
+    MAX_QUESTIONS_PER_BATCH = 5  # Smaller batches to avoid TPM rate limits
     
     difficulty_level = difficulty_mix or _exam_difficulty(exam_name)
     system_prompt = _get_system_prompt(exam_name)
@@ -550,12 +550,12 @@ def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_quest
     existing_texts = set()
     lock = threading.Lock()
 
-    # Use more workers to maximize parallelism across ALL subjects simultaneously
-    max_workers = min(len(subjects) * 3, 12) if len(subjects) > 0 else 1
+    # Use fewer workers to avoid hitting free-tier RPM/TPM rate limits on Groq
+    max_workers = 2
     logger.info(f"Starting generation: {num_questions} questions across {len(subjects)} subjects with {max_workers} workers")
     
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Launch ALL batches for ALL subjects at once (fully parallel)
+        # Launch batches sequentially to executor queue
         all_futures = []
         
         for subject in subjects:
@@ -565,7 +565,7 @@ def generate_questions(exam_name: str, subjects: List[Dict[str, Any]], num_quest
             constraints = _get_exam_constraints(exam_name, sub_name)
             sample_questions = _get_sample_questions(exam_name, sub_name)
             
-            # Split into batches and launch all at once
+            # Split into batches and launch
             remaining_for_subject = target_count
             while remaining_for_subject > 0:
                 batch_size = min(remaining_for_subject, MAX_QUESTIONS_PER_BATCH)
