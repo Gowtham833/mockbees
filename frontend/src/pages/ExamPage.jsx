@@ -32,8 +32,8 @@ export default function ExamPage() {
         useExamStore.getState().setTest(data, data.questions || []);
         setLoading(false);
         
-        // If already READY, start the timer immediately
-        if (data.generation_status === 'READY') {
+        // If we have at least one question, start the timer immediately so they don't wait for all questions
+        if (data.questions && data.questions.length > 0) {
           useExamStore.getState().startTimer();
         }
         
@@ -49,13 +49,18 @@ export default function ExamPage() {
                 error_message: newData.error_message
               });
               
+              // Start timer if we just received our first questions and it wasn't started
+              if (newData.questions && newData.questions.length > 0 && !useExamStore.getState().timerStarted) {
+                toast.success('Questions are ready! Your timer has started. 🐝');
+                useExamStore.getState().startTimer();
+              }
+
               if (newData.generation_status === 'READY' || newData.generation_status === 'FAILED') {
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
                 if (newData.generation_status === 'FAILED') {
                   toast.error(`Generation failed: ${newData.error_message}`);
-                } else {
-                  toast.success('All questions generated! Your timer starts now. Good luck! 🐝');
+                } else if (!useExamStore.getState().timerStarted) {
                   useExamStore.getState().startTimer();
                 }
               }
