@@ -31,14 +31,20 @@ def run_migrations_offline():
 
 
 def run_migrations_online():
+    ini_section = config.get_section(config.config_ini_section)
+    from app.config import settings
+    ini_section['sqlalchemy.url'] = settings.get_database_url
+    
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
+        ini_section,
         prefix='sqlalchemy.',
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection, target_metadata=target_metadata
+        )
 
         with context.begin_transaction():
             context.run_migrations()
