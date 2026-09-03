@@ -63,3 +63,9 @@
     display: block;
   }
 }
+
+@media (max-width: 768px) {
+  .app-main-content {
+    padding-bottom: 70px;
+  }
+}
