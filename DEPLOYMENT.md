@@ -1,6 +1,6 @@
 # Deploying MockBees to Render (and local Postgres setup)
 
-This document explains how to deploy the `mockbees` project to Render (frontend + Python backend) and how to run a local Postgres-based development stack using Docker Compose.
+This document explains how to deploy the `mockbees` project to Render as a single Docker service and how to run a local Postgres-based development stack using Docker Compose.
 
 ## 1) Render deployment (recommended for production frontend + backend)
 
@@ -8,34 +8,24 @@ Steps:
 
 1. Push your repo to GitHub.
 2. Connect your GitHub repository to Render (https://render.com).
-3. Create services from `render.yaml`:
-   - **Backend Service** (Python/FastAPI):
-      - Root Directory: repository root (leave this blank in Render)
-      - Build command: `pip install -r backend/requirements.txt`
-      - Start command: `uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT`
-     - Plan: Starter (or higher as needed)
-   - **Frontend Service** (Static):
-     - Build command: `cd frontend && npm install && npm run build`
-     - Publish path: `frontend/dist`
-     - Plan: Starter
+3. Create the web service from `render.yaml`. It uses the repository `Dockerfile` to build the React frontend and serve it with the FastAPI backend.
 
 4. Add Environment Variables in Render Dashboard:
    - `DATABASE_URL` — the `Internal Database URL` from your Render managed Postgres database (for example, `postgresql://user:pass@host:5432/dbname`)
    - `SECRET_KEY` — a long random string
    - `GROQ_API_KEY` — required for AI question generation
    - `GOOGLE_CLIENT_ID` — optional
-   - `VITE_API_URL` — set to your backend service URL (e.g., `https://mockbees-backend.onrender.com/api`)
 
-5. Render will automatically build and deploy both services using the `render.yaml` configuration.
+5. Render will automatically build and deploy the service using the `render.yaml` configuration.
 
-If a service was created manually, update its Build Command and Start Command to the values above. A command of `pip install -r requirements.txt` from the repository root will fail because the backend dependencies are in `backend/requirements.txt`.
+If a service was created manually, select Docker and use the repository root as the Docker context. Do not set a Python build command; the Dockerfile installs `backend/requirements.txt` during the image build.
 
-Do not set Render's `DATABASE_URL` to the Docker Compose value ending in `@db:5432/mockbees`; `db` is only resolvable inside the local Docker Compose network. The Blueprint leaves `DATABASE_URL` unsynchronized so you can provide the Render Postgres URL in the service environment.
+Do not set Render's `DATABASE_URL` to the Docker Compose value ending in `@db:5432/mockbees`; `db` is only resolvable inside the local Docker Compose network. The Blueprint leaves `DATABASE_URL`, `SECRET_KEY`, and `GROQ_API_KEY` unsynchronized so you can provide production values in the service environment.
 
 Notes:
 - Use a managed Postgres database (Render provides this) for production — do NOT use SQLite.
 - Make sure your `GROQ_API_KEY` account has sufficient quota for generation.
-- The frontend service will connect to the backend using the `VITE_API_URL` environment variable.
+- The unified Docker service serves the built frontend and the API from the same host.
 
 ## 2) Local development with Docker Compose (Postgres + backend + frontend build)
 

@@ -1,32 +1,15 @@
 services:
   - type: web
-    name: mockbees-backend
-    env: python
-    plan: starter
-    buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: "uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT"
+    name: mockbees
+    env: docker
+    plan: free
+    autoDeploy: true
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
-        value: "replace-with-secure-secret"
+        sync: false
       - key: GROQ_API_KEY
-        value: "replace-with-groq-api-key"
+        sync: false
       - key: GOOGLE_CLIENT_ID
-        value: "replace-with-google-client-id"
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "30"
-      - key: REFRESH_TOKEN_EXPIRE_DAYS
-        value: "7"
-    autoDeploy: true
-
-  - type: static
-    name: mockbees-frontend
-    env: static
-    plan: starter
-    buildCommand: "cd frontend && npm install && npm run build"
-    publishPath: frontend/dist
-    envVars:
-      - key: VITE_API_URL
-        value: "https://mockbees-backend.onrender.com/api"
-    autoDeploy: true
+        value: "placeholder"
