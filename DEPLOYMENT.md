@@ -20,7 +20,7 @@ Steps:
      - Plan: Starter
 
 4. Add Environment Variables in Render Dashboard:
-   - `DATABASE_URL` — e.g. `postgresql://user:pass@host:5432/dbname` (use a managed Postgres)
+   - `DATABASE_URL` — the `Internal Database URL` from your Render managed Postgres database (for example, `postgresql://user:pass@host:5432/dbname`)
    - `SECRET_KEY` — a long random string
    - `GROQ_API_KEY` — required for AI question generation
    - `GOOGLE_CLIENT_ID` — optional
@@ -29,6 +29,8 @@ Steps:
 5. Render will automatically build and deploy both services using the `render.yaml` configuration.
 
 If a service was created manually, update its Build Command and Start Command to the values above. A command of `pip install -r requirements.txt` from the repository root will fail because the backend dependencies are in `backend/requirements.txt`.
+
+Do not set Render's `DATABASE_URL` to the Docker Compose value ending in `@db:5432/mockbees`; `db` is only resolvable inside the local Docker Compose network. The Blueprint leaves `DATABASE_URL` unsynchronized so you can provide the Render Postgres URL in the service environment.
 
 Notes:
 - Use a managed Postgres database (Render provides this) for production — do NOT use SQLite.
