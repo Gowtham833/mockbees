@@ -1,4 +1,7 @@
 node_modules
+**/node_modules
+frontend/node_modules
+frontend/dist
 npm-debug.log
 .venv
 __pycache__
