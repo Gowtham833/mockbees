@@ -4,6 +4,12 @@ import App from './App.jsx';
 import './styles/index.css';
 import './styles/animations.css';
 import './styles/components.css';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

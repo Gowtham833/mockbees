@@ -25,6 +25,15 @@ export default function ExamSelectionPage() {
     } catch (e) { console.error(e); }
   };
 
+  const iconMap = {
+    'train': '🚂', 'building': '🏢', 'bank': '🏦', 'landmark': '🏛️',
+    'flag': '🚩', 'school': '🏫', 'shield': '🛡️', 'police': '👮',
+    'engineering': '⚙️', 'medical': '⚕️', 'business': '💼', 'gavel': '⚖️',
+    'globe': '🌍', 'book': '📚'
+  };
+
+  const getEmoji = (iconString) => iconMap[iconString] || '📝';
+
   if (loading) return <LoadingSpinner text="Loading exams..." />;
 
   return (
@@ -34,7 +43,7 @@ export default function ExamSelectionPage() {
         <button className={`filter-btn ${!selected ? 'active' : ''}`} onClick={() => { setSelected(null); setExams([]); }}>All</button>
         {categories.map(c => (
           <button key={c.id} className={`filter-btn ${selected === c.id ? 'active' : ''}`} onClick={() => selectCategory(c)}>
-            {c.icon} {c.name}
+            {getEmoji(c.icon)} {c.name}
           </button>
         ))}
       </div>
@@ -42,7 +51,7 @@ export default function ExamSelectionPage() {
         <div className="exams-grid">
           {categories.map(c => (
             <Card key={c.id} className="exam-card" hoverable onClick={() => selectCategory(c)}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>{c.icon}</div>
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>{getEmoji(c.icon)}</div>
               <div className="exam-card-name">{c.name}</div>
               <div className="exam-card-desc">{c.description}</div>
             </Card>
